@@ -20,6 +20,14 @@ class Shipment(Document):
     gross_weight_kg = FloatField()
     net_weight_kg = FloatField() #dont remove
     volume_cbm = FloatField() #dont remove
+
+    #quote details
+    quote_amount = FloatField()
+    quote_time = DateTimeField()
+    quote_extra = StringField() #optional
+    quote_status = StringField(default='pending', choices=['pending', 'accepted', 'rejected'])
+    quote_forwarder_id = ReferenceField(User)
+
     total_packages = IntField()
     package_type = StringField()
     preferred_etd = DateTimeField()
@@ -71,6 +79,11 @@ class Shipment(Document):
             'insurance_required': self.insurance_required,
             'special_instructions': self.special_instructions,
             'status': self.status,
+            'quote_amount': self.quote_amount,
+            'quote_time': self.quote_time.isoformat() if self.quote_time else None,
+            'quote_extra': self.quote_extra,
+            'quote_status': self.quote_status,
+            'quote_forwarder_id': str(self.quote_forwarder_id.id) if self.quote_forwarder_id else None,
             'metadata': self.metadata if self.metadata else {},
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None

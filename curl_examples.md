@@ -231,3 +231,39 @@ curl -X GET http://localhost:8000/api/forwarder/my-profile \
 curl -X GET http://localhost:8000/api/forwarder/my-profile -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
+### Accept Shipment Request (Submit Quote)
+Accept a shipment request by submitting a quote. This assigns the forwarder to the shipment.
+
+```bash
+curl -X PUT http://localhost:8000/api/forwarder/request-accept/SHIPMENT_ID_HERE \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -d '{
+    "quote_amount": 5000.00,
+    "quote_time": "2025-12-27T12:00:00Z",
+    "quote_extra": "Additional notes or conditions"
+  }'
+```
+
+**Minimal request (quote_amount only):**
+```bash
+curl -X PUT http://localhost:8000/api/forwarder/request-accept/SHIPMENT_ID_HERE \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -d '{
+    "quote_amount": 5000.00
+  }'
+```
+
+**One-liner:**
+```bash
+curl -X PUT http://localhost:8000/api/forwarder/request-accept/SHIPMENT_ID_HERE -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" -d '{"quote_amount":5000.00}'
+```
+
+**Note:** 
+- `quote_amount` is required
+- `quote_time` is optional (ISO 8601 format)
+- `quote_extra` is optional (additional notes)
+- Only works for shipments without a forwarder assigned (`forwarder_id` is null)
+- Sets `quote_status` to 'accepted' and assigns the forwarder to the shipment
+
