@@ -3,6 +3,7 @@ from flask_jwt_extended import jwt_required
 from app.utils.auth import get_current_user
 from app.utils.validators import validate_request_json
 from app.views.response_formatter import success_response, error_response, validation_error_response
+from app.models.shipment import Shipment
 from datetime import datetime, timedelta
 import random
 
@@ -162,3 +163,17 @@ def predict_rate():
     
     return success_response(prediction)
 
+
+@carrier_bp.route('/AllQuotes', methods=['POST'])
+@jwt_required()
+def getAllQuotes():
+    data, error_response_obj, status = validate_request_json()
+    if error_response_obj:
+        return error_response_obj, status
+    
+    user = get_current_user()
+    if not user:
+        return error_response("Unauthorized", "User not found", "auth", True, status_code=401)
+    
+    quotes = Shipment.objects(status='quoted', supplier_id=user.id).all()
+    return success_response([quote.to_dict() for quote in quotes])

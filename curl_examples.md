@@ -267,3 +267,25 @@ curl -X PUT http://localhost:8000/api/forwarder/request-accept/SHIPMENT_ID_HERE 
 - Only works for shipments without a forwarder assigned (`forwarder_id` is null)
 - Sets `quote_status` to 'accepted' and assigns the forwarder to the shipment
 
+## Carrier Routes (Requires JWT Token)
+
+### Get All Quotes (Quoted Shipments)
+Get all shipments with status 'quoted' for the current user (supplier).
+
+```bash
+curl -X POST http://localhost:8000/api/carriers/AllQuotes \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -d '{}'
+```
+
+**One-liner:**
+```bash
+curl -X POST http://localhost:8000/api/carriers/AllQuotes -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" -d '{}'
+```
+
+**Note:**
+- Returns all shipments where `status='quoted'` and `supplier_id` matches the authenticated user
+- Requires JWT authentication
+- Request body can be empty `{}` or any valid JSON
+
