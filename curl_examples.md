@@ -72,11 +72,23 @@ curl -X POST http://localhost:8000/api/auth/login \
   }'
 ```
 
-## Get Current User (Requires JWT Token)
+## Get Current User / My Profile (Requires JWT Token)
 
+**Using `/me` endpoint:**
 ```bash
 curl -X GET http://localhost:8000/api/me \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+**Using `/my-profile` endpoint:**
+```bash
+curl -X GET http://localhost:8000/api/my-profile \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+**One-liner:**
+```bash
+curl -X GET http://localhost:8000/api/my-profile -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ## Create Shipment (Requires JWT Token - Supplier)
@@ -106,20 +118,38 @@ curl -X GET http://localhost:8000/api/shipments/SHIPMENT_ID_HERE \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
 ```
 
-## List Shipments (Requires JWT Token)
+## List/Show Shipments (Requires JWT Token)
 
 ### Get All Shipments for Current User (Supplier)
 This endpoint extracts the user ID from the bearer token and returns all shipments where the user is the supplier.
 
+**Using `/list` endpoint:**
 ```bash
 curl -X GET http://localhost:8000/api/shipments/list \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
 ```
 
+**Using `/show` endpoint:**
+```bash
+curl -X GET http://localhost:8000/api/shipments/show \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+**Using `/show_shipments` endpoint:**
+```bash
+curl -X GET http://localhost:8000/api/shipments/show_shipments \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
 ### Filter Shipments by Status
 ```bash
-curl -X GET "http://localhost:8000/api/shipments/list?status=draft" \
+curl -X GET "http://localhost:8000/api/shipments/show_shipments?status=draft" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+**One-liner:**
+```bash
+curl -X GET http://localhost:8000/api/shipments/show_shipments -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
 ### Available Status Values

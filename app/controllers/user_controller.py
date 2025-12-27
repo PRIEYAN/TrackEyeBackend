@@ -7,6 +7,7 @@ user_bp = Blueprint('user', __name__)
 
 
 @user_bp.route('/me', methods=['GET'])
+@user_bp.route('/my-profile', methods=['GET'])
 @jwt_required()
 def get_current_user_info():
     try:

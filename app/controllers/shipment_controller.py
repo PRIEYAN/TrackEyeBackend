@@ -7,6 +7,7 @@ from app.views.response_formatter import success_response, error_response, valid
 from datetime import datetime
 import uuid
 import logging
+from mongoengine import Q
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,8 @@ def get_shipment(shipment_id):
 
 
 @shipment_bp.route('/list', methods=['GET'])
+@shipment_bp.route('/show', methods=['GET'])
+@shipment_bp.route('/show_shipments', methods=['GET'])
 @jwt_required()
 def list_shipments():
     try:
@@ -154,19 +157,21 @@ def list_shipments():
             return error_response("Unauthorized", "User not found", "auth", True, status_code=401)
         
         status_filter = request.args.get('status')
-        query = {}
         
         if user.role == 'supplier':
-            query['supplier_id'] = user
+            query = Q(supplier_id=user)
         elif user.role == 'buyer':
-            query['buyer_id'] = user
+            query = Q(buyer_id=user)
         elif user.role == 'forwarder':
-            query['forwarder_id'] = user
+            # Forwarders can see shipments assigned to them OR shipments without a forwarder (to bid on)
+            query = Q(forwarder_id=user) | Q(forwarder_id__exists=False) | Q(forwarder_id=None)
+        else:
+            query = Q()
         
         if status_filter:
-            query['status'] = status_filter
+            query = query & Q(status=status_filter)
         
-        shipments = Shipment.objects(**query).order_by('-created_at').all()
+        shipments = Shipment.objects(query).order_by('-created_at').all()
         
         return success_response([shipment.to_dict() for shipment in shipments], status_code=200)
     except Exception as e:
