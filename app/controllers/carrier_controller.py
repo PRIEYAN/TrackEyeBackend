@@ -177,3 +177,32 @@ def getAllQuotes():
     
     quotes = Shipment.objects(status='quoted', supplier_id=user.id).all()
     return success_response([quote.to_dict() for quote in quotes])
+
+@carrier_bp.route('/acceptQuote', methods=['POST'])
+@jwt_required()
+def acceptQuote():
+    data, error_response_obj, status = validate_request_json()
+    if error_response_obj:
+        return error_response_obj, status
+    
+    user = get_current_user()
+    if not user:
+        return error_response("Unauthorized", "User not found", "auth", True, status_code=401)
+    
+    errors = []
+    quote_id = data.get('quote_id')
+    if not quote_id:
+        errors.append({"loc": ["quote_id"], "msg": "Quote ID is required", "type": "value_error"})
+    if errors:
+        return validation_error_response(errors)
+    
+    quote = Shipment.objects(id=quote_id, supplier_id=user.id, status='quoted').first()
+    if not quote:
+        return error_response("Not Found", "Quote not found or not available", "quotes", True, status_code=404)
+    
+    quote.status = 'booked'
+    quote.quote_status = 'accepted'
+    quote.forwarder_id = quote.quote_forwarder_id
+    quote.quote_forwarder_booked = None
+    quote.save()
+    return success_response(quote.to_dict())

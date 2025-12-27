@@ -96,6 +96,7 @@ def request_accept(shipment_id):
         shipment.quote_forwarder_id = user  # ReferenceField expects User object
         shipment.quote_status = 'accepted'
         shipment.quote_extra = data.get('quote_extra', '')
+        shipment.quote_forwarder_booked.append(forwarder.id)
         
         # Parse quote_time if provided
         quote_time = data.get('quote_time')

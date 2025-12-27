@@ -79,6 +79,7 @@ class Shipment(Document):
             'insurance_required': self.insurance_required,
             'special_instructions': self.special_instructions,
             'status': self.status,
+            'quote_forwarder_booked':[str(self.quote_forwarder_id.id)] if self.quote_forwarder_id else [],
             'quote_amount': self.quote_amount,
             'quote_time': self.quote_time.isoformat() if self.quote_time else None,
             'quote_extra': self.quote_extra,

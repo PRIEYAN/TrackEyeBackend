@@ -289,3 +289,29 @@ curl -X POST http://localhost:8000/api/carriers/AllQuotes -H "Content-Type: appl
 - Requires JWT authentication
 - Request body can be empty `{}` or any valid JSON
 
+### Accept Quote
+Accept a quote for a shipment. Changes status from 'quoted' to 'booked'.
+
+```bash
+curl -X POST http://localhost:8000/api/carriers/acceptQuote \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE" \
+  -d '{
+    "quote_id": "QUOTE_ID_HERE"
+  }'
+```
+
+**One-liner:**
+```bash
+curl -X POST http://localhost:8000/api/carriers/acceptQuote -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" -d '{"quote_id":"QUOTE_ID_HERE"}'
+```
+
+**Required fields:**
+- `quote_id` (string) - The shipment/quote ID to accept
+
+**Note:**
+- Only works for shipments where `status='quoted'` and `supplier_id` matches the authenticated user
+- Changes `status` to 'booked' and `quote_status` to 'accepted'
+- Assigns the forwarder from `quote_forwarder_id` to `forwarder_id`
+- Requires JWT authentication
+
