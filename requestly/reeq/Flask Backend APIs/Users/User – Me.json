@@ -1,0 +1,24 @@
+{
+  "name": "User – Me",
+  "request": {
+    "type": "http",
+    "url": "http://localhost:8000/api/me",
+    "scripts": {
+      "preRequest": "",
+      "postResponse": ""
+    },
+    "method": "GET",
+    "queryParams": [],
+    "headers": [],
+    "contentType": "text/plain",
+    "auth": {
+      "currentAuthType": "BEARER_TOKEN",
+      "authConfigStore": {
+        "BEARER_TOKEN": {
+          "bearer": "token"
+        }
+      }
+    },
+    "pathVariables": []
+  }
+}

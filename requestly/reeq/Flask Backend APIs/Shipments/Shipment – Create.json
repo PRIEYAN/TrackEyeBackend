@@ -1,0 +1,20 @@
+{
+  "name": "Shipment – Create",
+  "request": {
+    "type": "http",
+    "url": "http://localhost:8000/api/shipments/create",
+    "scripts": {
+      "preRequest": "",
+      "postResponse": ""
+    },
+    "method": "POST",
+    "queryParams": [],
+    "headers": [],
+    "body": "",
+    "contentType": "text/plain",
+    "auth": {
+      "currentAuthType": "INHERIT",
+      "authConfigStore": {}
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Auth – Login",
+  "request": {
+    "type": "http",
+    "url": "http://localhost:8000/api/auth/login",
+    "scripts": {
+      "preRequest": "",
+      "postResponse": ""
+    },
+    "method": "POST",
+    "queryParams": [],
+    "headers": [],
+    "body": "{\n\"email\": \"prie@for.com\",\n\"password\": \"12345678\"\n}",
+    "contentType": "application/json",
+    "auth": {
+      "currentAuthType": "INHERIT",
+      "authConfigStore": {}
+    },
+    "pathVariables": []
+  }
+}

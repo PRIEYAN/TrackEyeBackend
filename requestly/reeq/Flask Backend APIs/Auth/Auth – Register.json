@@ -1,0 +1,21 @@
+{
+  "name": "Auth – Register",
+  "request": {
+    "type": "http",
+    "url": "http://localhost:8000/api/auth/register",
+    "scripts": {
+      "preRequest": "",
+      "postResponse": ""
+    },
+    "method": "POST",
+    "queryParams": [],
+    "headers": [],
+    "body": "{\n\"email\": \"supplier@example.com\",\n\"password\": \"password123\",\n\"name\": \"John Supplier\",\n\"phone\": \"+1234567890\",\n\"role\": \"supplier\"\n}",
+    "contentType": "application/json",
+    "auth": {
+      "currentAuthType": "INHERIT",
+      "authConfigStore": {}
+    },
+    "pathVariables": []
+  }
+}
