@@ -11,6 +11,8 @@ from app.views.response_formatter import success_response, error_response
 import os
 import uuid
 import requests
+import base64
+import re
 from datetime import datetime
 
 document_bp = Blueprint('document', __name__)
@@ -21,6 +23,71 @@ ALLOWED_MIME_TYPES = {'application/pdf', 'image/png', 'image/jpeg', 'image/jpg'}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def parse_invoice_date(date_str):
+    """Parse various date formats and convert to YYYY-MM-DD"""
+    if not date_str:
+        return None
+    
+    date_str = str(date_str).strip()
+    
+    # Try parsing MM/DD/YYYY format (e.g., 04/13/2013)
+    mmddyyyy_match = re.match(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
+    if mmddyyyy_match:
+        month, day, year = mmddyyyy_match.groups()
+        try:
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            pass
+    
+    # Try parsing DD/MM/YYYY format
+    ddmmyyyy_match = re.match(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
+    if ddmmyyyy_match:
+        day, month, year = ddmmyyyy_match.groups()
+        try:
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            pass
+    
+    # Try parsing YYYY-MM-DD format (already correct)
+    yyyymmdd_match = re.match(r'(\d{4})-(\d{1,2})-(\d{1,2})', date_str)
+    if yyyymmdd_match:
+        return date_str
+    
+    # Try parsing ISO format
+    try:
+        dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+        return dt.strftime('%Y-%m-%d')
+    except:
+        pass
+    
+    return date_str  # Return as-is if can't parse
+
+
+def clean_numeric_value(value):
+    """Clean numeric values by removing currency symbols, commas, and whitespace"""
+    if value is None:
+        return None
+    
+    if isinstance(value, (int, float)):
+        return float(value)
+    
+    value_str = str(value).strip()
+    
+    # Remove currency symbols
+    value_str = re.sub(r'[$€₹£]', '', value_str)
+    
+    # Remove commas
+    value_str = value_str.replace(',', '')
+    
+    # Remove whitespace
+    value_str = value_str.strip()
+    
+    try:
+        return float(value_str)
+    except (ValueError, TypeError):
+        return None
 
     
 @document_bp.route('/uploadInvoice', methods=['POST'])
@@ -59,6 +126,11 @@ def upload_invoice():
         temp_path = os.path.join(upload_folder, f"{uuid.uuid4()}_{filename}")
         file.save(temp_path)
 
+        mime_type = file.content_type or 'application/octet-stream'
+        
+        with open(temp_path, 'rb') as image_file:
+            image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
+
         storage_service = StorageService()
         storage_path = storage_service.generate_document_path(shipment_id, filename)
         file_url = storage_service.upload_file(temp_path, storage_path)
@@ -70,45 +142,132 @@ def upload_invoice():
 
         ai_service = AIService()
         extracted_data, confidence, method = ai_service.extract_document_data(temp_path, "invoice")
+        
+        if not extracted_data:
+            current_app.logger.warning("No data extracted from invoice")
+        else:
+            current_app.logger.debug(f"Extracted data keys: {list(extracted_data.keys())}")
 
+        # Helper function to get value with multiple fallbacks
+        def get_field(*keys, default=None):
+            if not extracted_data:
+                return default
+            for key in keys:
+                value = extracted_data.get(key)
+                if value is not None and value != "":
+                    return value
+            return default
+        
+        # Extract with comprehensive fallbacks for different field names
+        invoice_number = get_field("invoice_number", "invoiceNumber", "invoice_no", "invoiceNo")
+        invoice_date_raw = get_field("date", "invoice_date", "invoiceDate", "date_of_issue")
+        invoice_date = parse_invoice_date(invoice_date_raw) if invoice_date_raw else None
+        buyer_name = get_field("buyer_name", "buyerName", "buyer", "client_name", "clientName", "importer", "customer")
+        seller_name = get_field("seller_name", "sellerName", "seller", "vendor", "exporter", "company_name", "companyName")
+        company_name = get_field("company_name", "companyName", "seller_name", "sellerName", "seller")
+        
+        # Amount extraction - prioritize gross_worth, then total_amount, then amount
+        total_amount_raw = get_field("gross_worth", "grossWorth", "total_amount", "totalAmount", "total", "amount")
+        total_amount = clean_numeric_value(total_amount_raw)
+        
+        net_amount_raw = get_field("net_worth", "netWorth", "net_amount", "netAmount", "subtotal")
+        net_amount = clean_numeric_value(net_amount_raw)
+        
+        # Tax extraction
+        tax_amount_raw = get_field("tax_amount", "taxAmount", "vat", "VAT", "gst", "GST", "tax")
+        tax_amount = clean_numeric_value(tax_amount_raw)
+        
+        tax_percentage_raw = get_field("tax_percentage", "taxPercentage", "vat_percentage", "vatPercentage")
+        tax_percentage = clean_numeric_value(tax_percentage_raw)
+        
+        # Currency detection
+        currency = get_field("currency", "Currency")
+        if not currency:
+            # Try to infer from extracted data
+            currency_str = str(extracted_data) if extracted_data else ""
+            if "$" in currency_str or "USD" in currency_str.upper():
+                currency = "USD"
+            elif "€" in currency_str or "EUR" in currency_str.upper():
+                currency = "EUR"
+            elif "₹" in currency_str or "INR" in currency_str.upper():
+                currency = "INR"
+        
         invoice_data = {
-            "invoice_number": extracted_data.get("invoice_number") if extracted_data else None,
-            "invoice_date": extracted_data.get("date") if extracted_data else None,
-            "buyer_name": extracted_data.get("buyer_name") if extracted_data else None,
-            "seller_name": extracted_data.get("seller_name") if extracted_data else None,
-            "hsn_code": extracted_data.get("hs_code") if extracted_data else None,
-            "total_amount": extracted_data.get("amount") if extracted_data else None,
-            "currency": extracted_data.get("currency") if extracted_data else None,
-            "tax_amount": extracted_data.get("tax_amount") if extracted_data else None,
+            "invoice_number": invoice_number,
+            "invoice_date": invoice_date,
+            "buyer_name": buyer_name,
+            "seller_name": seller_name,
+            "hsn_code": get_field("hs_code", "hsn_code", "hsnCode", "hsCode"),
+            "total_amount": total_amount,
+            "net_amount": net_amount,
+            "currency": currency or "USD",
+            "tax_amount": tax_amount,
+            "tax_percentage": tax_percentage,
             "extracted_raw": extracted_data
         }
 
+        # Build comprehensive invoice details
+        items = get_field("items", "Items", default=[])
+        if items and isinstance(items, list):
+            # Ensure items are properly formatted
+            formatted_items = []
+            for item in items:
+                if isinstance(item, dict):
+                    formatted_items.append({
+                        "description": item.get("description") or item.get("Description") or "",
+                        "quantity": clean_numeric_value(item.get("quantity") or item.get("Qty") or item.get("qty") or 0),
+                        "unit_price": clean_numeric_value(item.get("unit_price") or item.get("net_price") or item.get("Net price") or item.get("unitPrice") or 0),
+                        "total": clean_numeric_value(item.get("total") or item.get("net_worth") or item.get("gross_worth") or item.get("netWorth") or item.get("grossWorth") or 0),
+                        "hs_code": item.get("hs_code") or item.get("hsn_code") or item.get("hsCode") or None,
+                        "vat_percentage": clean_numeric_value(item.get("vat_percentage") or item.get("VAT [%]") or item.get("vatPercentage") or None),
+                    })
+            items = formatted_items
+
+        due_date_raw = get_field("due_date", "dueDate", "Due Date")
+        due_date = parse_invoice_date(due_date_raw) if due_date_raw else None
+        
         invoice_details = {
-            "unique_invoice_number": extracted_data.get("invoice_number") if extracted_data else None,
-            "company_name": extracted_data.get("company_name") or extracted_data.get("seller_name") if extracted_data else None,
-            "buyer_company_name": extracted_data.get("buyer_name") if extracted_data else None,
-            "seller_company_name": extracted_data.get("seller_name") if extracted_data else None,
-            "summary": extracted_data.get("summary") if extracted_data else None,
-            "date_of_invoice": extracted_data.get("date") if extracted_data else None,
-            "payment_terms": extracted_data.get("payment_terms") if extracted_data else None,
-            "due_date": extracted_data.get("due_date") if extracted_data else None,
-            "po_number": extracted_data.get("po_number") if extracted_data else None,
-            "total_amount": extracted_data.get("amount") if extracted_data else None,
-            "currency": extracted_data.get("currency") if extracted_data else None,
-            "tax_amount": extracted_data.get("tax_amount") if extracted_data else None,
-            "items": extracted_data.get("items") if extracted_data else None,
-            "notes": extracted_data.get("notes") if extracted_data else None,
+            "unique_invoice_number": invoice_number,
+            "company_name": company_name or seller_name,
+            "buyer_company_name": buyer_name,
+            "seller_company_name": seller_name,
+            "seller_address": get_field("seller_address", "sellerAddress"),
+            "buyer_address": get_field("buyer_address", "buyerAddress", "client_address"),
+            "seller_tax_id": get_field("seller_tax_id", "sellerTaxId", "tax_id", "Tax Id"),
+            "buyer_tax_id": get_field("buyer_tax_id", "buyerTaxId"),
+            "iban": get_field("iban", "IBAN"),
+            "summary": get_field("summary", "Summary") or (f"Invoice {invoice_number} from {seller_name} to {buyer_name}" if invoice_number and seller_name and buyer_name else None),
+            "date_of_invoice": invoice_date,
+            "payment_terms": get_field("payment_terms", "paymentTerms", "Payment Terms"),
+            "due_date": due_date,
+            "po_number": get_field("po_number", "poNumber", "po_no", "purchase_order", "PO Number"),
+            "total_amount": total_amount,
+            "net_amount": net_amount,
+            "currency": currency or "USD",
+            "tax_amount": tax_amount,
+            "tax_percentage": tax_percentage,
+            "items": items if items else None,
+            "notes": get_field("notes", "Notes", "remarks", "terms"),
             "extracted_at": datetime.utcnow().isoformat(),
             "confidence": confidence
         }
+        
+        # Log extracted invoice details for debugging
+        current_app.logger.info(f"Invoice extracted - Number: {invoice_number}, Seller: {seller_name}, Buyer: {buyer_name}, Total: {total_amount}, Items: {len(items) if items else 0}")
 
         if not shipment.metadata:
             shipment.metadata = {}
         shipment.metadata['invoice_details'] = invoice_details
+        shipment.metadata['invoice_image_base64'] = image_base64
+        shipment.metadata['invoice_image_mime_type'] = mime_type
         shipment.save()
 
-        mime_type = file.content_type or 'application/octet-stream'
         file_size = os.path.getsize(temp_path)
+
+        document_metadata = {
+            'base64_image': image_base64,
+            'base64_mime_type': mime_type
+        }
 
         document = DocumentModel(
             shipment_id=shipment,
@@ -121,7 +280,8 @@ def upload_invoice():
             extracted_data=invoice_data,
             confidence_score=confidence,
             extraction_method=method,
-            needs_review=confidence < 0.8
+            needs_review=confidence < 0.8,
+            metadata=document_metadata
         )
         document.save()
 
@@ -133,6 +293,9 @@ def upload_invoice():
 
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
+
+        print(invoice_data)
+        print(invoice_details)
 
         return success_response(
             "Invoice uploaded and processed",
@@ -283,7 +446,63 @@ def get_shipment_documents(shipment_id):
             return error_response("Not Found", "Shipment not found", "documents", True, status_code=404)
         
         documents = DocumentModel.objects(shipment_id=shipment).all()
-        return success_response([doc.to_dict() for doc in documents], status_code=200)
+        documents_list = []
+        for doc in documents:
+            doc_dict = doc.to_dict()
+            # Include base64 image if available
+            if doc.metadata and 'base64_image' in doc.metadata:
+                doc_dict['metadata'] = doc.metadata
+            documents_list.append(doc_dict)
+        
+        return success_response(documents_list, status_code=200)
+    except Exception as e:
+        return error_response("Service Unavailable", f"Database error: {str(e)}", "database", True, status_code=503)
+
+
+@document_bp.route('/shipments/<shipment_id>/invoice', methods=['GET'])
+@jwt_required()
+def get_shipment_invoice(shipment_id):
+    try:
+        try:
+            shipment = Shipment.objects(id=shipment_id).first()
+        except:
+            shipment = None
+        if not shipment:
+            return error_response("Not Found", "Shipment not found", "documents", True, status_code=404)
+        
+        invoice_document = DocumentModel.objects(shipment_id=shipment, type="invoice").first()
+        
+        if not invoice_document:
+            return error_response("Not Found", "No invoice found for this shipment", "documents", True, status_code=404)
+        
+        invoice_data = invoice_document.to_dict()
+        
+        # Get invoice details from shipment metadata
+        invoice_details = None
+        invoice_image_base64 = None
+        invoice_image_mime_type = None
+        
+        if shipment.metadata:
+            invoice_details = shipment.metadata.get('invoice_details')
+            invoice_image_base64 = shipment.metadata.get('invoice_image_base64')
+            invoice_image_mime_type = shipment.metadata.get('invoice_image_mime_type')
+        
+        # Also check document metadata for base64 image
+        if not invoice_image_base64 and invoice_document.metadata:
+            invoice_image_base64 = invoice_document.metadata.get('base64_image')
+            invoice_image_mime_type = invoice_document.metadata.get('base64_mime_type')
+        
+        response_data = {
+            'document': invoice_data,
+            'invoice_details': invoice_details,
+            'invoice_image_base64': invoice_image_base64,
+            'invoice_image_mime_type': invoice_image_mime_type,
+            'file_url': invoice_document.file_url,
+            'extracted_data': invoice_document.extracted_data,
+            'confidence_score': invoice_document.confidence_score,
+        }
+        
+        return success_response(response_data, status_code=200)
     except Exception as e:
         return error_response("Service Unavailable", f"Database error: {str(e)}", "database", True, status_code=503)
 

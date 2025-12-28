@@ -129,7 +129,62 @@ curl -X POST http://localhost:8000/api/documents/shipments/SHIPMENT_ID/upload -H
 
 ---
 
-## 3. Get Shipment Documents
+## 3. Get Shipment Invoice
+
+Retrieve invoice details including base64 image and extracted data for a specific shipment.
+
+**Endpoint:** `GET /api/documents/shipments/<shipment_id>/invoice`
+
+**cURL Example:**
+```bash
+curl -X GET http://localhost:8000/api/documents/shipments/SHIPMENT_ID_HERE/invoice \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN_HERE"
+```
+
+**One-liner:**
+```bash
+curl -X GET http://localhost:8000/api/documents/shipments/SHIPMENT_ID/invoice -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "document": {
+      "id": "DOCUMENT_ID_HERE",
+      "shipment_id": "SHIPMENT_ID_HERE",
+      "type": "invoice",
+      "file_name": "invoice.pdf",
+      "file_url": "https://storage.example.com/...",
+      "extracted_data": {...},
+      "confidence_score": 0.95
+    },
+    "invoice_details": {
+      "unique_invoice_number": "INV-2024-001",
+      "company_name": "ABC Trading Co",
+      "buyer_company_name": "DEF Imports LLC",
+      "seller_company_name": "ABC Trading Co",
+      "date_of_invoice": "2024-12-28",
+      "total_amount": 3575.00,
+      "currency": "USD",
+      "tax_amount": 325.00,
+      "payment_terms": "Net 30",
+      "po_number": "PO-2024-5678",
+      "items": [...]
+    },
+    "invoice_image_base64": "base64_encoded_image_string...",
+    "invoice_image_mime_type": "image/jpeg",
+    "file_url": "https://storage.example.com/...",
+    "extracted_data": {...},
+    "confidence_score": 0.95
+  }
+}
+```
+
+---
+
+## 4. Get Shipment Documents
 
 Retrieve all documents associated with a specific shipment.
 
@@ -175,7 +230,7 @@ curl -X GET http://localhost:8000/api/documents/shipments/SHIPMENT_ID/list -H "A
 
 ---
 
-## 4. Get Document Details
+## 5. Get Document Details
 
 Retrieve detailed information about a specific document.
 
@@ -226,7 +281,7 @@ curl -X GET http://localhost:8000/api/documents/DOCUMENT_ID -H "Authorization: B
 
 ---
 
-## 5. Extract Document (Re-extract)
+## 6. Extract Document (Re-extract)
 
 Re-extract data from a stored document. Currently returns 501 Not Implemented.
 
@@ -256,7 +311,7 @@ curl -X POST http://localhost:8000/api/documents/DOCUMENT_ID/extract -H "Authori
 
 ---
 
-## 6. Autofill Shipment from Document
+## 7. Autofill Shipment from Document
 
 Automatically fill shipment fields using extracted data from a document.
 

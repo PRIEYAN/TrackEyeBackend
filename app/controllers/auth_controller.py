@@ -135,11 +135,33 @@ def login():
     
     try:
         user = User.objects(email=email).first()
-        if not user or not verify_password(password, user.hashed_password):
+        
+        if current_app:
+            current_app.logger.debug(f"Login attempt - Email: {email}")
+            current_app.logger.debug(f"Login attempt - User found: {user is not None}")
+            if user:
+                current_app.logger.debug(f"Login attempt - User ID: {user.id}, Role: {user.role}")
+        
+        if not user:
+            if current_app:
+                current_app.logger.warning(f"Login failed - User not found: {email}")
+            return error_response("Unauthorized", "Incorrect email or password", "auth", True, status_code=401)
+        
+        password_valid = verify_password(password, user.hashed_password)
+        if current_app:
+            current_app.logger.debug(f"Login attempt - Password valid: {password_valid}")
+        
+        if not password_valid:
+            if current_app:
+                current_app.logger.warning(f"Login failed - Invalid password for: {email}")
             return error_response("Unauthorized", "Incorrect email or password", "auth", True, status_code=401)
         
         token_data = create_token(user)
+        if current_app:
+            current_app.logger.info(f"Login successful - User: {email}, Role: {user.role}")
         return success_response(token_data, status_code=200)
     except Exception as e:
+        if current_app:
+            current_app.logger.error(f"Login error: {str(e)}", exc_info=True)
         return error_response("Service Unavailable", str(e), "database", True, status_code=503)
 

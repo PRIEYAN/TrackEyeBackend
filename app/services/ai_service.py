@@ -14,6 +14,16 @@ class AIService:
         else:
             self.enabled = False
     
+    def _get_model(self, preferred_model='gemini-1.5-flash'):
+        """Get a Gemini model with fallback options"""
+        models_to_try = [preferred_model, 'gemini-1.5-flash', 'gemini-pro', 'gemini-1.5-pro']
+        for model_name in models_to_try:
+            try:
+                return genai.GenerativeModel(model_name), model_name
+            except Exception:
+                continue
+        raise Exception("No available Gemini model found")
+    
     def extract_document_data(self, file_path: str, document_type: str) -> tuple[Optional[Dict[str, Any]], float, str]:
         if not self.enabled:
             return None, 0.0, "ai_disabled"
@@ -21,7 +31,7 @@ class AIService:
         try:
             start_time = time.time()
             
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            model, model_name = self._get_model('gemini-1.5-flash')
             
             with open(file_path, 'rb') as f:
                 file_data = f.read()
@@ -39,12 +49,19 @@ class AIService:
             
             processing_time = int((time.time() - start_time) * 1000)
             
-            extracted_data = self._parse_response(response.text)
+            response_text = response.text if hasattr(response, 'text') else str(response)
+            print(f"AI Response (first 500 chars): {response_text[:500]}")
+            
+            extracted_data = self._parse_response(response_text)
+            print(f"Parsed extracted_data keys: {list(extracted_data.keys()) if extracted_data else 'None'}")
+            
             confidence = self._calculate_confidence(extracted_data)
             
-            return extracted_data, confidence, "gemini-1.5-pro"
+            return extracted_data, confidence, model_name
         except Exception as e:
             print(f"AI extraction error: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None, 0.0, "error"
     
     def detect_document_type(self, file_path: str) -> tuple[str, float]:
@@ -52,7 +69,7 @@ class AIService:
             return "other", 0.0
         
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            model, _ = self._get_model('gemini-1.5-flash')
             
             with open(file_path, 'rb') as f:
                 file_data = f.read()
@@ -93,7 +110,7 @@ class AIService:
             }
         
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            model, _ = self._get_model('gemini-1.5-flash')
             
             prompt = f"""Analyze customs clearance delay risk for:
             Port: {port}
@@ -133,7 +150,7 @@ class AIService:
             }
         
         try:
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            model, _ = self._get_model('gemini-1.5-flash')
             
             prompt = f"""Predict freight rate trend for:
             Origin: {origin}
@@ -172,10 +189,78 @@ class AIService:
         return mime_types.get(ext, 'application/octet-stream')
     
     def _get_extraction_prompt(self, document_type: str) -> str:
-        base_prompt = """Extract structured data from this document. Return JSON format with relevant fields."""
+        base_prompt = """Extract structured data from this invoice document. You must return ONLY valid JSON format, no other text. The JSON must include all available fields from the document."""
         
         prompts = {
-            "invoice": base_prompt + """ Fields: invoice_number, date, amount, currency, items (array with description, quantity, unit_price, total), buyer_name, seller_name, tax_amount, payment_terms, summary, company_name, due_date, po_number, notes.""",
+            "invoice": base_prompt + """
+Extract ALL fields from this invoice document and return as valid JSON. Be thorough and extract every available field.
+
+Required JSON structure:
+{
+  "invoice_number": "extract invoice number/invoice no (e.g., INV-2024-001, 51109338)",
+  "invoiceNumber": "same as invoice_number",
+  "date": "extract date of issue/invoice date in YYYY-MM-DD format (convert from MM/DD/YYYY or DD/MM/YYYY)",
+  "invoice_date": "same as date",
+  "amount": extract total gross amount as number (remove currency symbols, commas),
+  "total_amount": extract total gross amount as number,
+  "total": extract total gross amount as number,
+  "gross_worth": extract gross total as number,
+  "net_worth": extract net total as number (before tax),
+  "currency": "extract currency (USD, EUR, INR, etc.) or infer from symbol ($=USD, €=EUR, ₹=INR)",
+  "buyer_name": "extract buyer/client/customer company name",
+  "buyerName": "same as buyer_name",
+  "buyer": "same as buyer_name",
+  "client_name": "extract client name if different from buyer",
+  "seller_name": "extract seller/vendor/company name",
+  "sellerName": "same as seller_name",
+  "seller": "same as seller_name",
+  "company_name": "extract seller company name",
+  "exporter": "extract exporter name if present",
+  "tax_amount": extract total tax/VAT/GST amount as number (remove currency symbols),
+  "taxAmount": "same as tax_amount",
+  "vat": extract VAT amount as number,
+  "gst": extract GST amount as number,
+  "tax_percentage": extract tax percentage as number (e.g., 10, 18),
+  "payment_terms": "extract payment terms (e.g., Net 30, Due on Receipt, Payment Due)",
+  "paymentTerms": "same as payment_terms",
+  "due_date": "extract due date if mentioned (convert to YYYY-MM-DD)",
+  "dueDate": "same as due_date",
+  "po_number": "extract purchase order number/PO number if present",
+  "poNumber": "same as po_number",
+  "purchase_order": "same as po_number",
+  "summary": "brief summary describing what this invoice is for",
+  "notes": "any additional notes, terms, or conditions",
+  "seller_address": "extract seller address",
+  "buyer_address": "extract buyer/client address",
+  "seller_tax_id": "extract seller tax ID/GSTIN/VAT number",
+  "buyer_tax_id": "extract buyer tax ID if present",
+  "iban": "extract IBAN or bank account if present",
+  "items": [
+    {
+      "description": "item/product description",
+      "quantity": extract quantity as number,
+      "unit_price": extract unit price per item as number,
+      "net_price": "same as unit_price",
+      "total": extract line total as number,
+      "net_worth": "line net total",
+      "gross_worth": "line gross total",
+      "vat_percentage": extract VAT percentage for this item,
+      "hs_code": "extract HSN/HS code if present",
+      "hsn_code": "same as hs_code"
+    }
+  ]
+}
+
+IMPORTANT:
+- Extract ALL numbers without currency symbols or commas
+- Convert dates to YYYY-MM-DD format
+- Include ALL items from the invoice table
+- Extract seller and buyer names exactly as written
+- If currency symbol is $, set currency to "USD"
+- If currency symbol is €, set currency to "EUR"  
+- If currency symbol is ₹, set currency to "INR"
+- Extract tax/VAT amounts separately from totals
+- Return ONLY valid JSON, no markdown formatting, no code blocks, no explanations""",
             "packing_list": base_prompt + """ Fields: packing_list_number, date, total_packages, total_weight_kg, total_volume_cbm, items (array with description, quantity, weight_kg, volume_cbm, hs_code).""",
             "commercial_invoice": base_prompt + """ Fields: invoice_number, date, exporter, importer, items (array with description, quantity, unit_price, total, hs_code), total_amount, currency, incoterm.""",
             "certificate_of_origin": base_prompt + """ Fields: certificate_number, issue_date, exporter, importer, origin_country, items (array with description, hs_code).""",
@@ -186,14 +271,34 @@ class AIService:
     
     def _parse_response(self, text: str) -> Dict[str, Any]:
         import json
+        import re
+        
+        if not text:
+            return {}
+        
         try:
+            # Try to find JSON in markdown code blocks
+            json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL)
+            if json_match:
+                return json.loads(json_match.group(1))
+        except:
+            pass
+        
+        try:
+            # Try to find JSON object directly
             json_start = text.find('{')
             json_end = text.rfind('}') + 1
             if json_start >= 0 and json_end > json_start:
                 json_str = text[json_start:json_end]
+                # Try to fix common JSON issues
+                json_str = json_str.replace('\n', ' ').replace('\r', ' ')
                 return json.loads(json_str)
-        except Exception:
-            pass
+        except json.JSONDecodeError as e:
+            print(f"JSON parse error: {e}")
+            print(f"Text snippet: {text[:500]}")
+        except Exception as e:
+            print(f"Parse error: {e}")
+        
         return {}
     
     def _calculate_confidence(self, extracted_data: Dict[str, Any]) -> float:
