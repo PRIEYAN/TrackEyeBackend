@@ -75,12 +75,18 @@ def create_shipment():
     
     origin_port = data.get('origin_port')
     destination_port = data.get('destination_port')
+    origin_latitude = data.get('origin_latitude')
+    origin_longitude = data.get('origin_longitude')
+    destination_latitude = data.get('destination_latitude')
+    destination_longitude = data.get('destination_longitude')
     weight = data.get('weight') or data.get('gross_weight_kg')
     volume = data.get('volume') or data.get('volume_cbm')
     
     logger.info("Extracted fields:")
     logger.info(f"  origin_port: {origin_port}")
     logger.info(f"  destination_port: {destination_port}")
+    logger.info(f"  origin_latitude: {origin_latitude}, origin_longitude: {origin_longitude}")
+    logger.info(f"  destination_latitude: {destination_latitude}, destination_longitude: {destination_longitude}")
     logger.info(f"  weight: {weight}")
     logger.info(f"  volume: {volume}")
     
@@ -106,6 +112,10 @@ def create_shipment():
             supplier_id=user,
             origin_port=origin_port,
             destination_port=destination_port,
+            origin_latitude=float(origin_latitude) if origin_latitude is not None else None,
+            origin_longitude=float(origin_longitude) if origin_longitude is not None else None,
+            destination_latitude=float(destination_latitude) if destination_latitude is not None else None,
+            destination_longitude=float(destination_longitude) if destination_longitude is not None else None,
             gross_weight_kg=float(weight),
             volume_cbm=float(volume)
         )

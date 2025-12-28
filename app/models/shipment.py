@@ -11,6 +11,10 @@ class Shipment(Document):
     forwarder_id = ReferenceField(User)
     origin_port = StringField()
     destination_port = StringField()
+    origin_latitude = FloatField()
+    origin_longitude = FloatField()
+    destination_latitude = FloatField()
+    destination_longitude = FloatField()
     #dont remove
     incoterm = StringField(choices=['EXW', 'FOB', 'CIF', 'DDP', 'CFR', 'DAP'])
     cargo_type = StringField(choices=['FCL', 'LCL', 'AIR', 'BREAKBULK'])
@@ -62,6 +66,10 @@ class Shipment(Document):
             'forwarder_id': str(self.forwarder_id.id) if self.forwarder_id else None,
             'origin_port': self.origin_port,
             'destination_port': self.destination_port,
+            'origin_latitude': self.origin_latitude,
+            'origin_longitude': self.origin_longitude,
+            'destination_latitude': self.destination_latitude,
+            'destination_longitude': self.destination_longitude,
             'incoterm': self.incoterm,
             'cargo_type': self.cargo_type,
             'container_type': self.container_type,
